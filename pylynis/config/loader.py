@@ -47,7 +47,7 @@ def load_profile(path: Optional[str]) -> Profile:
     if not path:
         return _DEF
     p = pathlib.Path(path)
-    if not p.exists():  # pragma: no cover
+    if not p.exists(): 
         return _DEF
     if p.suffix.lower() in {".ini", ".prf", ".cfg"}:
         return _parse_ini(p.read_text(encoding="utf-8"))

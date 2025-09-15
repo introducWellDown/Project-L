@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pylynis"
+version = "0.1.0"
+description = "Python port of Lynis (security auditing tool) — experimental, unofficial"
+authors = [{name = "Ваше Имя", email = "you@example.com"}]
+license = {text = "GPL-3.0-only"}
+readme = "README.md"
+requires-python = ">=3.11"
+keywords = ["security", "audit", "lynis", "compliance"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: MacOS",
+  "Operating System :: BSD",
+]
+
+[project.scripts]
+pylynis = "pylynis.cli:main"
+
+[tool.pytest.ini_options]
+addopts = "-q"
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I"]
+
+[tool.coverage.run]
+source = ["pylynis"]
