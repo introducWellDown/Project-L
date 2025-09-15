@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 import shutil
 from pathlib import Path
 
@@ -149,3 +150,33 @@ class PKGS_6005_UnattendedUpgrades(Check):
         if Path("/etc/apt/apt.conf.d/20auto-upgrades").exists():
             return self.ok(notes="unattended-upgrades настроен")
         return self.skip(notes="unattended-upgrades не настроен")
+
+import shutil
+
+class PKGS_6006_DangerousPackages(Check):
+    id = "PKGS-6006"
+    title = "Проверка наличия небезопасных пакетов"
+    category = "PKGS"
+
+    def run(self, ctx):
+        bad_pkgs = ["telnet", "rsh-client", "rsh-server", "tftp", "talk", "ftp"]
+        found = []
+        if shutil.which("dpkg"):
+            for pkg in bad_pkgs:
+                proc = subprocess.run(["dpkg", "-s", pkg], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                if proc.returncode == 0:
+                    found.append(pkg)
+        elif shutil.which("rpm"):
+            for pkg in bad_pkgs:
+                proc = subprocess.run(["rpm", "-q", pkg], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                if proc.returncode == 0:
+                    found.append(pkg)
+        if found:
+            return self.fail([
+                Finding(
+                    id=self.id + ":present",
+                    description=f"Найдено небезопасных пакетов: {', '.join(found)}",
+                    severity=Severity.HIGH,
+                )
+            ])
+        return self.ok(notes="Небезопасные пакеты отсутствуют")

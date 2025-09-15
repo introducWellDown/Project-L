@@ -165,3 +165,166 @@ class FILE_3006_EtcSecurityLimits(Check):
         if p.exists():
             return self.ok(notes="limits.conf существует")
         return self.skip(notes="limits.conf отсутствует")
+
+class FILE_3007_SudoersPermissions(Check):
+    id = "FILE-3007"
+    title = "Проверка прав на /etc/sudoers"
+    category = "FILE"
+
+    def run(self, ctx):
+        path = Path("/etc/sudoers")
+        if not path.exists():
+            return self.skip(notes="Файл /etc/sudoers отсутствует")
+        st = path.stat()
+        if st.st_mode & 0o022:
+            return self.fail([
+                Finding(
+                    id=self.id + ":weak",
+                    description="/etc/sudoers доступен для записи группой или другими пользователями",
+                    severity=Severity.HIGH,
+                )
+            ])
+        return self.ok(notes="Права на /etc/sudoers корректные")
+
+
+class FILE_3008_LogDirPermissions(Check):
+    id = "FILE-3008"
+    title = "Проверка прав на /var/log"
+    category = "FILE"
+
+    def run(self, ctx):
+        path = Path("/var/log")
+        if not path.exists():
+            return self.skip(notes="Каталог /var/log отсутствует")
+        st = path.stat()
+        if st.st_mode & 0o002:
+            return self.fail([
+                Finding(
+                    id=self.id + ":worldwritable",
+                    description="/var/log доступен для записи всем пользователям",
+                    severity=Severity.HIGH,
+                )
+            ])
+        return self.ok(notes="Права на /var/log корректные")
+
+class FILE_3009_EtcIssuePermissions(Check):
+    id = "FILE-3009"
+    title = "Проверка прав на /etc/issue и /etc/motd"
+    category = "FILE"
+
+    def run(self, ctx):
+        bad: list[Finding] = []
+        for fpath in [Path("/etc/issue"), Path("/etc/motd")]:
+            if fpath.exists():
+                st = fpath.stat()
+                if st.st_mode & 0o002:
+                    bad.append(Finding(
+                        id=self.id + f":{fpath.name}",
+                        description=f"{fpath} доступен для записи всеми пользователями",
+                        severity=Severity.WARNING,
+                    ))
+        if bad:
+            return self.fail(bad)
+        return self.ok(notes="Права на issue/motd корректные")
+
+
+class FILE_3010_GroupFilesPermissions(Check):
+    id = "FILE-3010"
+    title = "Проверка прав на /etc/group и /etc/gshadow"
+    category = "FILE"
+
+    def run(self, ctx):
+        bad: list[Finding] = []
+        for fpath in [Path("/etc/group"), Path("/etc/gshadow")]:
+            if fpath.exists():
+                st = fpath.stat()
+                if st.st_mode & 0o022:
+                    bad.append(Finding(
+                        id=self.id + f":{fpath.name}",
+                        description=f"{fpath} имеет небезопасные права доступа",
+                        severity=Severity.HIGH,
+                    ))
+        if bad:
+            return self.fail(bad)
+        return self.ok(notes="Права на group/gshadow корректные")
+
+class FILE_3011_TmpMountOptions(Check):
+    id = "FILE-3011"
+    title = "Проверка опций монтирования для /tmp и /var/tmp"
+    category = "FILE"
+
+    def run(self, ctx):
+        try:
+            mounts = Path("/proc/mounts").read_text(encoding="utf-8").splitlines()
+        except FileNotFoundError:
+            return self.skip(notes="Не удалось прочитать /proc/mounts")
+
+        bad: list[Finding] = []
+        for line in mounts:
+            parts = line.split()
+            if len(parts) < 4:
+                continue
+            mnt = parts[1]
+            opts = parts[3].split(",")
+            if mnt in {"/tmp", "/var/tmp"}:
+                for need in ("nodev", "nosuid", "noexec"):
+                    if need not in opts:
+                        bad.append(Finding(
+                            id=self.id + f":{mnt}:{need}",
+                            description=f"{mnt} смонтирован без опции {need}",
+                            severity=Severity.WARNING,
+                        ))
+        if bad:
+            return self.fail(bad)
+        return self.ok(notes="Разделы /tmp и /var/tmp смонтированы с безопасными опциями")
+
+class FILE_3012_VarLogMount(Check):
+    id = "FILE-3012"
+    title = "Проверка отдельного монтирования /var/log"
+    category = "FILE"
+
+    def run(self, ctx):
+        try:
+            mounts = Path("/proc/mounts").read_text(encoding="utf-8").splitlines()
+        except FileNotFoundError:
+            return self.skip(notes="Не удалось прочитать /proc/mounts")
+        for line in mounts:
+            parts = line.split()
+            if len(parts) > 1 and parts[1] == "/var/log":
+                return self.ok(notes="/var/log смонтирован отдельно")
+        return self.fail([
+            Finding(
+                id=self.id + ":notseparate",
+                description="/var/log не смонтирован отдельно",
+                severity=Severity.SUGGESTION,
+            )
+        ])
+
+
+class FILE_3013_DevShmOptions(Check):
+    id = "FILE-3013"
+    title = "Проверка опций монтирования для /dev/shm"
+    category = "FILE"
+
+    def run(self, ctx):
+        try:
+            mounts = Path("/proc/mounts").read_text(encoding="utf-8").splitlines()
+        except FileNotFoundError:
+            return self.skip(notes="Не удалось прочитать /proc/mounts")
+        for line in mounts:
+            parts = line.split()
+            if len(parts) < 4:
+                continue
+            if parts[1] == "/dev/shm":
+                opts = parts[3].split(",")
+                missing = [o for o in ("nodev", "nosuid", "noexec") if o not in opts]
+                if missing:
+                    return self.fail([
+                        Finding(
+                            id=self.id + ":opts",
+                            description=f"/dev/shm смонтирован без {','.join(missing)}",
+                            severity=Severity.WARNING,
+                        )
+                    ])
+                return self.ok(notes="/dev/shm смонтирован с безопасными опциями")
+        return self.skip(notes="/dev/shm не найден в /proc/mounts")

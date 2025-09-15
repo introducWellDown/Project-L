@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-
+import subprocess
 from .base import Check
 from ..core.types import Finding, Severity
 
@@ -137,3 +137,128 @@ class SYSCTL_9005_Ipv6Disable(Check):
         if val == "1":
             return self.ok(notes="IPv6 отключён")
         return self.ok(notes="IPv6 включён")
+
+class SYSCTL_9006_RpFilter(Check):
+    id = "SYSCTL-9006"
+    title = "Проверка net.ipv4.conf.all.rp_filter"
+    category = "SYSCTL"
+
+    def run(self, ctx):
+        path = Path("/proc/sys/net/ipv4/conf/all/rp_filter")
+        if not path.exists():
+            return self.skip(notes="rp_filter недоступен")
+        val = path.read_text().strip()
+        if val in {"1", "2"}:
+            return self.ok(notes=f"rp_filter включён ({val})")
+        return self.fail([
+            Finding(
+                id=self.id + ":off",
+                description="rp_filter выключен — защита от IP spoofing отсутствует",
+                severity=Severity.WARNING,
+            )
+        ])
+
+
+class SYSCTL_9007_IcmpBroadcast(Check):
+    id = "SYSCTL-9007"
+    title = "Проверка net.ipv4.icmp_echo_ignore_broadcasts"
+    category = "SYSCTL"
+
+    def run(self, ctx):
+        path = Path("/proc/sys/net/ipv4/icmp_echo_ignore_broadcasts")
+        if not path.exists():
+            return self.skip(notes="icmp_echo_ignore_broadcasts недоступен")
+        val = path.read_text().strip()
+        if val == "1":
+            return self.ok(notes="ICMP broadcast игнорируются")
+        return self.fail([
+            Finding(
+                id=self.id + ":on",
+                description="ICMP broadcast разрешены (может быть использован Smurf-атакой)",
+                severity=Severity.WARNING,
+            )
+        ])
+
+
+class NETW_5007_NtpActive(Check):
+    id = "NETW-5007"
+    title = "Проверка синхронизации времени (ntpd/chronyd/systemd-timesyncd)"
+    category = "NETW"
+
+    def run(self, ctx):
+        for svc in ("ntpd", "chronyd", "systemd-timesyncd"):
+            try:
+                proc = subprocess.run(["pidof", svc], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+                if proc.returncode == 0:
+                    return self.ok(notes=f"Сервис синхронизации времени активен: {svc}")
+            except Exception:
+                continue
+        return self.fail([
+            Finding(
+                id=self.id + ":inactive",
+                description="Службы синхронизации времени не найдены",
+                severity=Severity.SUGGESTION,
+            )
+        ])
+
+
+class SYSCTL_9008_Ipv6Forward(Check):
+    id = "SYSCTL-9008"
+    title = "Проверка net.ipv6.conf.all.forwarding"
+    category = "SYSCTL"
+
+    def run(self, ctx):
+        path = Path("/proc/sys/net/ipv6/conf/all/forwarding")
+        if not path.exists():
+            return self.skip(notes="IPv6 forwarding недоступен")
+        val = path.read_text().strip()
+        if val == "0":
+            return self.ok(notes="IPv6 forwarding отключён")
+        return self.fail([
+            Finding(
+                id=self.id + ":on",
+                description="IPv6 forwarding включён",
+                severity=Severity.WARNING,
+            )
+        ])
+
+class SYSCTL_9009_SendRedirects(Check):
+    id = "SYSCTL-9009"
+    title = "Проверка net.ipv4.conf.all.send_redirects"
+    category = "SYSCTL"
+
+    def run(self, ctx):
+        path = Path("/proc/sys/net/ipv4/conf/all/send_redirects")
+        if not path.exists():
+            return self.skip(notes="send_redirects недоступен")
+        val = path.read_text().strip()
+        if val == "0":
+            return self.ok(notes="send_redirects отключены")
+        return self.fail([
+            Finding(
+                id=self.id + ":on",
+                description="send_redirects включены — небезопасно",
+                severity=Severity.WARNING,
+            )
+        ])
+
+
+class SYSCTL_9010_IcmpBogusResponses(Check):
+    id = "SYSCTL-9010"
+    title = "Проверка net.ipv4.icmp_ignore_bogus_error_responses"
+    category = "SYSCTL"
+
+    def run(self, ctx):
+        path = Path("/proc/sys/net/ipv4/icmp_ignore_bogus_error_responses")
+        if not path.exists():
+            return self.skip(notes="icmp_ignore_bogus_error_responses недоступен")
+        val = path.read_text().strip()
+        if val == "1":
+            return self.ok(notes="Неверные ICMP-ответы игнорируются")
+        return self.fail([
+            Finding(
+                id=self.id + ":off",
+                description="Система принимает bogus ICMP-ответы",
+                severity=Severity.SUGGESTION,
+            )
+        ])

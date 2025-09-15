@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 import shutil
 from pathlib import Path
 
@@ -198,3 +199,115 @@ class AUTH_1006_PasswdConsistency(Check):
             )
             return self.fail([f])
         return self.ok(notes="/etc/passwd и /etc/shadow согласованы")
+
+
+class AUTH_1007_PasswordAging(Check):
+    id = "AUTH-1007"
+    title = "Проверка политики устаревания паролей"
+    category = "AUTH"
+
+    def run(self, ctx):
+        try:
+            output = subprocess.check_output(["chage", "-l", "root"], text=True, stderr=subprocess.DEVNULL)
+        except Exception:
+            return self.skip(notes="Команда chage недоступна")
+        if "password must be changed" in output.lower():
+            return self.ok(notes="Для root установлен срок действия пароля")
+        return self.fail([
+            Finding(
+                id=self.id + ":noaging",
+                description="У root нет политики устаревания пароля",
+                severity=Severity.SUGGESTION,
+            )
+        ])
+    
+class AUTH_1008_SecureTTY(Check):
+    id = "AUTH-1008"
+    title = "Проверка наличия /etc/securetty"
+    category = "AUTH"
+
+    def run(self, ctx):
+        path = Path("/etc/securetty")
+        if not path.exists():
+            return self.fail([
+                Finding(
+                    id=self.id + ":missing",
+                    description="Файл /etc/securetty отсутствует — root может войти откуда угодно",
+                    severity=Severity.WARNING,
+                )
+            ])
+        return self.ok(notes="/etc/securetty присутствует")
+
+
+class AUTH_1009_GuestAccounts(Check):
+    id = "AUTH-1009"
+    title = "Проверка наличия гостевых учётных записей"
+    category = "AUTH"
+
+    def run(self, ctx):
+        passwd = Path("/etc/passwd")
+        if not passwd.exists():
+            return self.skip(notes="Файл /etc/passwd отсутствует")
+        bad: list[Finding] = []
+        for line in passwd.read_text(encoding="utf-8").splitlines():
+            user = line.split(":")[0]
+            if user.lower() in {"guest", "demo", "test"}:
+                bad.append(Finding(
+                    id=self.id + f":{user}",
+                    description=f"Обнаружена небезопасная учётка {user}",
+                    severity=Severity.HIGH,
+                ))
+        if bad:
+            return self.fail(bad)
+        return self.ok(notes="Гостевых учёток нет")
+    
+
+class AUTH_1010_DefaultUmask(Check):
+    id = "AUTH-1010"
+    title = "Проверка значения umask по умолчанию"
+    category = "AUTH"
+
+    def run(self, ctx):
+        paths = [Path("/etc/login.defs"), Path("/etc/profile")]
+        found_val = None
+        for p in paths:
+            if p.exists():
+                data = p.read_text(encoding="utf-8", errors="ignore")
+                for line in data.splitlines():
+                    if "UMASK" in line and not line.strip().startswith("#"):
+                        try:
+                            found_val = int(line.split()[-1], 8)
+                        except Exception:
+                            continue
+        if found_val is None:
+            return self.skip(notes="Не удалось определить umask по умолчанию")
+        if found_val <= 0o027:
+            return self.ok(notes=f"umask={oct(found_val)}")
+        return self.fail([
+            Finding(
+                id=self.id + ":weak",
+                description=f"Слабое значение umask ({oct(found_val)})",
+                severity=Severity.WARNING,
+            )
+        ])
+
+
+class AUTH_1011_SudoersNOPASSWD(Check):
+    id = "AUTH-1011"
+    title = "Проверка sudoers на наличие NOPASSWD"
+    category = "AUTH"
+
+    def run(self, ctx):
+        sudoers = Path("/etc/sudoers")
+        if not sudoers.exists():
+            return self.skip(notes="Файл /etc/sudoers не найден")
+        data = sudoers.read_text(encoding="utf-8", errors="ignore")
+        if "NOPASSWD" in data:
+            return self.fail([
+                Finding(
+                    id=self.id + ":nopasswd",
+                    description="В sudoers найдены правила с NOPASSWD",
+                    severity=Severity.HIGH,
+                )
+            ])
+        return self.ok(notes="NOPASSWD в sudoers не обнаружен")
