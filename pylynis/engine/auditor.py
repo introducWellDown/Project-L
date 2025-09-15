@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import pkgutil
+import socket
 from typing import List, Optional
 
 from ..core.runner import run_checks, build_report
@@ -24,6 +25,32 @@ def _autodiscover_checks() -> None:
             print(f"[WARN] Не удалось загрузить модуль проверки {m.name}: {e}")
 
 
+def _get_zone_subject() -> str:
+    """
+    Определяет IP устройства и сетевую зону.
+    Зоны:
+      10.0.3.n → DMZ
+      10.0.2.n → SIGMA
+      10.0.1.n → ALPHA
+    """
+    ip = None
+    try:
+        ip = socket.gethostbyname(socket.gethostname())
+    except Exception:
+        return "Объект аудита: неизвестный IP"
+
+    if ip.startswith("10.0.3."):
+        zone = "DMZ"
+    elif ip.startswith("10.0.2."):
+        zone = "SIGMA"
+    elif ip.startswith("10.0.1."):
+        zone = "ALPHA"
+    else:
+        zone = "UNKNOWN"
+
+    return f"Зона {zone}, ip - {ip}"
+
+
 class Auditor:
     """
     Основной класс для запуска аудита.
@@ -42,7 +69,7 @@ class Auditor:
     def run(
         self,
         *,
-        subject: str = "system",
+        subject: Optional[str] = None,
         profile_path: Optional[str] = None,
         tests: Optional[List[str]] = None,
         skip: Optional[List[str]] = None,
@@ -50,12 +77,15 @@ class Auditor:
         """
         Запуск аудита.
 
-        :param subject: Объект аудита (например, "system" или имя хоста).
+        :param subject: Объект аудита (по умолчанию вычисляется: зона + ip).
         :param profile_path: Путь к профилю (ini/toml), если задан.
         :param tests: Явный список id проверок, которые нужно выполнить.
         :param skip: Список id проверок, которые нужно пропустить.
         :return: Отчёт (Report).
         """
+        if not subject:
+            subject = _get_zone_subject()
+
         profile = load_profile(profile_path)
         ids = tests if tests else (profile.include_tests or None)
         sk = skip if skip else (profile.skip_tests or None)
