@@ -25,6 +25,21 @@ def _autodiscover_checks() -> None:
             print(f"[WARN] Не удалось загрузить модуль проверки {m.name}: {e}")
 
 
+def _get_primary_ip() -> str:
+    """
+    Определяет реальный IP адрес устройства (не loopback).
+    Использует сокетное подключение к внешнему адресу.
+    """
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))  # внешний адрес (Google DNS), пакеты реально не отправляются
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
+
+
 def _get_zone_subject() -> str:
     """
     Определяет IP устройства и сетевую зону.
@@ -33,11 +48,7 @@ def _get_zone_subject() -> str:
       10.0.2.n → SIGMA
       10.0.1.n → ALPHA
     """
-    ip = None
-    try:
-        ip = socket.gethostbyname(socket.gethostname())
-    except Exception:
-        return "Объект аудита: неизвестный IP"
+    ip = _get_primary_ip()
 
     if ip.startswith("10.0.3."):
         zone = "DMZ"

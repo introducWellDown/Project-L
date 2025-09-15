@@ -20,8 +20,8 @@ def build_parser() -> argparse.ArgumentParser:
         description="Python port of Lynis — security auditing tool (experimental)",
     )
     parser.add_argument("command", choices=["audit", "scan", "update", "show-report"], help="Command")
-    # 👇 вместо "system" ставим None, чтобы Auditor сам подставлял Зону+IP
-    parser.add_argument("subject", nargs="?", default=None, help="What to audit (по умолчанию: зона+ip)")
+    # subject по умолчанию None → Auditor сам подставит Зону+IP
+    parser.add_argument("subject", nargs="?", default=None, help="Что проверять (по умолчанию: зона+ip)")
     parser.add_argument("--profile", dest="profile", help="Path to profile (.prf/.ini/.toml)")
     parser.add_argument("--tests", dest="tests", help="Comma-separated list of tests to run")
     parser.add_argument("--skip", dest="skip", help="Comma-separated list of tests to skip")
@@ -35,22 +35,37 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Optional[List[str]] = None) -> int:
     args = build_parser().parse_args(argv)
+
     if args.command in {"audit", "scan"}:
         profile = load_profile(args.profile)
         tests = args.tests.split(",") if args.tests else profile.include_tests
         skip = args.skip.split(",") if args.skip else profile.skip_tests
+
         auditor = Auditor(verbose=args.verbose, debug=args.debug)
-        report = auditor.run(subject=args.subject, profile_path=args.profile, tests=tests, skip=skip)
+
+        # если передали "checks", заменяем на None → Auditor сам подставит Зону+IP
+        subject = None if args.subject == "checks" else args.subject
+
+        report = auditor.run(
+            subject=subject,
+            profile_path=args.profile,
+            tests=tests,
+            skip=skip,
+        )
+
         ReporterCls = FORMATS.get(args.fmt, TXTReporter)
         reporter = ReporterCls()
         reporter.emit(report, output_file=args.report_file, quiet=args.quiet)
         return 0
+
     if args.command == "update":
         print("update: not implemented yet", file=sys.stderr)
         return 2
+
     if args.command == "show-report":
         print("show-report: not implemented yet", file=sys.stderr)
         return 2
+
     return 1
 
 
