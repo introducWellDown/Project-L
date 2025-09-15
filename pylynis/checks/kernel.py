@@ -9,103 +9,149 @@ from ..core.types import Finding, Severity
 
 class KRNL_4000_KernelVersion(Check):
     id = "KRNL-4000"
-    title = "Detect kernel version"
+    title = "Определение версии ядра"
     category = "KRNL"
 
     def run(self, ctx):
-        rel = platform.release()
+        try:
+            rel = platform.release()
+        except Exception as e:
+            f = Finding(
+                id=self.id + ":error",
+                description=f"Ошибка при определении версии ядра: {e}",
+                severity=Severity.SUGGESTION,
+            )
+            return self.fail([f])
         if rel:
-            return self.ok(notes=f"Kernel version {rel}")
-        f = Finding(id=self.id + ":unknown", description="Unable to determine kernel version", severity=Severity.SUGGESTION)
+            return self.ok(notes=f"Версия ядра: {rel}")
+        f = Finding(
+            id=self.id + ":unknown",
+            description="Не удалось определить версию ядра",
+            severity=Severity.SUGGESTION,
+        )
         return self.fail([f])
 
 
 class KRNL_4001_CheckArch(Check):
     id = "KRNL-4001"
-    title = "Check system architecture"
+    title = "Проверка архитектуры системы"
     category = "KRNL"
 
     def run(self, ctx):
-        arch = platform.machine()
+        try:
+            arch = platform.machine()
+        except Exception:
+            return self.skip(notes="Не удалось определить архитектуру")
         if arch:
-            return self.ok(notes=f"Architecture {arch}")
-        return self.skip(notes="Unknown architecture")
+            return self.ok(notes=f"Архитектура: {arch}")
+        return self.skip(notes="Архитектура неизвестна")
 
 
 class KRNL_4002_RandomizeVaSpace(Check):
     id = "KRNL-4002"
-    title = "Check kernel.randomize_va_space"
+    title = "Проверка kernel.randomize_va_space (ASLR)"
     category = "KRNL"
 
     def run(self, ctx):
         path = Path("/proc/sys/kernel/randomize_va_space")
         if not path.exists():
-            return self.skip(notes="randomize_va_space not available")
-        val = path.read_text().strip()
+            return self.skip(notes="randomize_va_space недоступен")
+        try:
+            val = path.read_text().strip()
+        except (PermissionError, FileNotFoundError, OSError):
+            return self.skip(notes="Не удалось прочитать randomize_va_space")
         if val in {"1", "2"}:
-            return self.ok(notes=f"randomize_va_space={val}")
-        f = Finding(id=self.id + ":disabled", description="ASLR disabled", severity=Severity.WARNING)
+            return self.ok(notes=f"ASLR включён (randomize_va_space={val})")
+        f = Finding(
+            id=self.id + ":disabled",
+            description="ASLR выключен",
+            severity=Severity.WARNING,
+        )
         return self.fail([f])
 
 
 class KRNL_4003_SysRq(Check):
     id = "KRNL-4003"
-    title = "Check kernel.sysrq"
+    title = "Проверка kernel.sysrq"
     category = "KRNL"
 
     def run(self, ctx):
         path = Path("/proc/sys/kernel/sysrq")
         if not path.exists():
-            return self.skip(notes="sysrq not available")
-        val = path.read_text().strip()
+            return self.skip(notes="sysrq недоступен")
+        try:
+            val = path.read_text().strip()
+        except (PermissionError, FileNotFoundError, OSError):
+            return self.skip(notes="Не удалось прочитать sysrq")
         if val == "0":
-            return self.ok(notes="sysrq disabled")
-        f = Finding(id=self.id + ":enabled", description=f"sysrq enabled ({val})", severity=Severity.SUGGESTION)
+            return self.ok(notes="sysrq отключён")
+        f = Finding(
+            id=self.id + ":enabled",
+            description=f"sysrq включён (значение: {val})",
+            severity=Severity.SUGGESTION,
+        )
         return self.fail([f])
 
 
 class KRNL_4004_DmesgRestrict(Check):
     id = "KRNL-4004"
-    title = "Check kernel.dmesg_restrict"
+    title = "Проверка kernel.dmesg_restrict"
     category = "KRNL"
 
     def run(self, ctx):
         path = Path("/proc/sys/kernel/dmesg_restrict")
         if not path.exists():
-            return self.skip(notes="dmesg_restrict not available")
-        val = path.read_text().strip()
+            return self.skip(notes="dmesg_restrict недоступен")
+        try:
+            val = path.read_text().strip()
+        except (PermissionError, FileNotFoundError, OSError):
+            return self.skip(notes="Не удалось прочитать dmesg_restrict")
         if val == "1":
-            return self.ok(notes="dmesg restricted")
-        f = Finding(id=self.id + ":off", description="dmesg not restricted", severity=Severity.SUGGESTION)
+            return self.ok(notes="dmesg ограничен (restricted)")
+        f = Finding(
+            id=self.id + ":off",
+            description="dmesg не ограничен",
+            severity=Severity.SUGGESTION,
+        )
         return self.fail([f])
 
 
 class KRNL_4005_KptrRestrict(Check):
     id = "KRNL-4005"
-    title = "Check kernel.kptr_restrict"
+    title = "Проверка kernel.kptr_restrict"
     category = "KRNL"
 
     def run(self, ctx):
         path = Path("/proc/sys/kernel/kptr_restrict")
         if not path.exists():
-            return self.skip(notes="kptr_restrict not available")
-        val = path.read_text().strip()
+            return self.skip(notes="kptr_restrict недоступен")
+        try:
+            val = path.read_text().strip()
+        except (PermissionError, FileNotFoundError, OSError):
+            return self.skip(notes="Не удалось прочитать kptr_restrict")
         if val == "1":
-            return self.ok(notes="kptr_restrict enabled")
-        f = Finding(id=self.id + ":off", description="kptr_restrict disabled", severity=Severity.SUGGESTION)
+            return self.ok(notes="kptr_restrict включён")
+        f = Finding(
+            id=self.id + ":off",
+            description="kptr_restrict выключен",
+            severity=Severity.SUGGESTION,
+        )
         return self.fail([f])
 
 
 class KRNL_4006_ModuleLoading(Check):
     id = "KRNL-4006"
-    title = "Check kernel.modules_disabled"
+    title = "Проверка kernel.modules_disabled"
     category = "KRNL"
 
     def run(self, ctx):
         path = Path("/proc/sys/kernel/modules_disabled")
         if not path.exists():
-            return self.skip(notes="modules_disabled not available")
-        val = path.read_text().strip()
+            return self.skip(notes="modules_disabled недоступен")
+        try:
+            val = path.read_text().strip()
+        except (PermissionError, FileNotFoundError, OSError):
+            return self.skip(notes="Не удалось прочитать modules_disabled")
         if val == "1":
-            return self.ok(notes="Module loading disabled")
-        return self.ok(notes="Module loading enabled")
+            return self.ok(notes="Загрузка модулей отключена")
+        return self.ok(notes="Загрузка модулей разрешена")

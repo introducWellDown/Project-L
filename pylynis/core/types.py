@@ -10,6 +10,7 @@ class Severity(str, Enum):
     SUGGESTION = "suggestion"
     WARNING = "warning"
     ERROR = "error"
+    HIGH = "high"
 
 
 @dataclass(slots=True)
