@@ -20,7 +20,8 @@ def build_parser() -> argparse.ArgumentParser:
         description="Python port of Lynis — security auditing tool (experimental)",
     )
     parser.add_argument("command", choices=["audit", "scan", "update", "show-report"], help="Command")
-    parser.add_argument("subject", nargs="?", default="system", help="What to audit (system)")
+    # 👇 вместо "system" ставим None, чтобы Auditor сам подставлял Зону+IP
+    parser.add_argument("subject", nargs="?", default=None, help="What to audit (по умолчанию: зона+ip)")
     parser.add_argument("--profile", dest="profile", help="Path to profile (.prf/.ini/.toml)")
     parser.add_argument("--tests", dest="tests", help="Comma-separated list of tests to run")
     parser.add_argument("--skip", dest="skip", help="Comma-separated list of tests to skip")
