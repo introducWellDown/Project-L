@@ -3,13 +3,15 @@ from __future__ import annotations
 import argparse
 import sys
 from typing import List, Optional
+import requests
+import json
 
 from .engine.auditor import Auditor
 from .reporters.console import ConsoleReporter
 from .reporters.json import JSONReporter
 from .reporters.txt import TXTReporter
 from .config.loader import load_profile
-
+from .utils.discovery import discover_server   
 
 FORMATS = {"text": TXTReporter, "console": ConsoleReporter, "json": JSONReporter}
 
@@ -20,7 +22,6 @@ def build_parser() -> argparse.ArgumentParser:
         description="Python port of Lynis — security auditing tool (experimental)",
     )
     parser.add_argument("command", choices=["audit", "scan", "update", "show-report"], help="Command")
-    # subject по умолчанию None → Auditor сам подставит Зону+IP
     parser.add_argument("subject", nargs="?", default=None, help="Что проверять (по умолчанию: зона+ip)")
     parser.add_argument("--profile", dest="profile", help="Path to profile (.prf/.ini/.toml)")
     parser.add_argument("--tests", dest="tests", help="Comma-separated list of tests to run")
@@ -30,6 +31,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("-q", "--quiet", action="store_true", help="Quiet mode")
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
     parser.add_argument("-d", "--debug", action="store_true", help="Debug output")
+    parser.add_argument("--no-server", action="store_true", help="Не отправлять отчёт на сервер")
     return parser
 
 
@@ -43,7 +45,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
         auditor = Auditor(verbose=args.verbose, debug=args.debug)
 
-        # если передали "checks", заменяем на None → Auditor сам подставит Зону+IP
+        # subject: если "checks", заменяем на None → Auditor сам подставит Зону+IP
         subject = None if args.subject == "checks" else args.subject
 
         report = auditor.run(
@@ -53,9 +55,44 @@ def main(argv: Optional[List[str]] = None) -> int:
             skip=skip,
         )
 
+        # Локальный вывод
         ReporterCls = FORMATS.get(args.fmt, TXTReporter)
         reporter = ReporterCls()
         reporter.emit(report, output_file=args.report_file, quiet=args.quiet)
+
+        # Попробовать отправить отчёт на сервер
+        if not args.no_server:
+            server_url = discover_server()
+            if server_url:
+                try:
+                    payload = {
+                        "subject": report.subject,
+                        "meta": report.meta,
+                        "checks": [
+                            {
+                                "id": c.id,
+                                "status": c.status,
+                                "title": c.title,
+                                "notes": c.notes,
+                                "findings": [
+                                    {
+                                        "id": f.id,
+                                        "description": f.description,
+                                        "severity": f.severity,
+                                    }
+                                    for f in c.findings
+                                ],
+                            }
+                            for c in report.checks
+                        ],
+                    }
+                    resp = requests.post(server_url, json=payload, timeout=10)
+                    print(f"[AGENT] Отчёт отправлен на {server_url}, статус {resp.status_code}")
+                except Exception as e:
+                    print(f"[AGENT] Ошибка при отправке отчёта: {e}")
+            else:
+                print("[AGENT] Сервер не найден, отчёт не отправлен")
+
         return 0
 
     if args.command == "update":
