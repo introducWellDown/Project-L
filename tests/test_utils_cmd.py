@@ -1,5 +1,5 @@
 import subprocess
-from pylynis.utils.cmd import run_cmd, CommandError
+from pylock.utils.cmd import run_cmd, CommandError
 
 def test_run_cmd_success(monkeypatch):
     def fake_run(*a, **kw):

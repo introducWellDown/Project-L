@@ -1,5 +1,5 @@
-from pylynis.checks.kernel import KRNL_1000_KernelVersion
-from pylynis.engine.context import Context
+from pylock.checks.kernel import KRNL_1000_KernelVersion
+from pylock.engine.context import Context
 
 def test_kernel_version():
     ctx = Context(subject="s", profile_path=None, env={})

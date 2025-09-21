@@ -1,4 +1,4 @@
-from pylynis.cli import build_parser
+from pylock.cli import build_parser
 
 def test_cli_builds_and_has_commands():
     p = build_parser()

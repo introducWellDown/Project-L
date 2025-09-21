@@ -1,6 +1,6 @@
 import json
-from pylynis.core.types import Report, CheckResult
-from pylynis.reporters.json import JSONReporter
+from pylock.core.types import Report, CheckResult
+from pylock.reporters.json import JSONReporter
 
 def test_json_reporter(tmp_path):
     rpt = Report(subject="x", meta={}, checks=[

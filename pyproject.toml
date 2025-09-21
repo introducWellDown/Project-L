@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pylynis"
+name = "pylock"
 version = "0.1.0"
 description = "Python port of Lynis (security auditing tool) — experimental, unofficial"
 authors = [{name = "Ваше Имя", email = "you@example.com"}]
@@ -20,7 +20,7 @@ classifiers = [
 ]
 
 [project.scripts]
-pylynis = "pylynis.cli:main"
+pylock = "pylock.cli:main"
 
 [tool.pytest.ini_options]
 addopts = "-q"
@@ -31,4 +31,4 @@ line-length = 100
 select = ["E", "F", "I"]
 
 [tool.coverage.run]
-source = ["pylynis"]
+source = ["pylock"]

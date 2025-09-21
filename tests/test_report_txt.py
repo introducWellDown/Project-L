@@ -1,5 +1,5 @@
-from pylynis.core.types import Report, CheckResult
-from pylynis.reporters.txt import TXTReporter
+from pylock.core.types import Report, CheckResult
+from pylock.reporters.txt import TXTReporter
 
 def test_txt_reporter(tmp_path):
     rpt = Report(subject="demo", meta={}, checks=[

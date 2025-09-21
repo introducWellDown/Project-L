@@ -1,5 +1,5 @@
-from pylynis.checks.packages import PKGS_1000_Manager
-from pylynis.engine.context import Context
+from pylock.checks.packages import PKGS_1000_Manager
+from pylock.engine.context import Context
 
 def test_pkg_manager(monkeypatch):
     ctx = Context(subject="s", profile_path=None, env={})
